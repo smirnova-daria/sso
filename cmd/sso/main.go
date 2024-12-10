@@ -3,7 +3,10 @@ package main
 import (
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
+	"github.com/smirnova-daria/sso/internal/app"
 	"github.com/smirnova-daria/sso/internal/config"
 	"github.com/smirnova-daria/sso/internal/lib/logger/handlers/slogpretty"
 )
@@ -20,6 +23,21 @@ func main() {
 	log := setupLogger(cfg.Env)
 
 	log.Info("starting application")
+
+	application := app.New(log, cfg.GRPC.Port, cfg.StoragePath, cfg.TokenTTL)
+
+	go application.GRPCSrv.MustRun()
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGTERM, syscall.SIGINT)
+
+	sgn := <-stop
+
+	log.Info("stopping application", slog.String("signal", sgn.String()))
+
+	application.GRPCSrv.Stop()
+
+	log.Info("application stopped")
 }
 
 func setupLogger(env string) *slog.Logger {
